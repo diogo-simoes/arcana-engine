@@ -167,6 +167,73 @@ arcana.tome = tome;
 
 
 function Board () {
+	var board, player, enemy, state;
+	board = this;
+	this.machina = {
+		'start': {
+			actions: ['new-game']
+		},
+		'full-turn': {
+			actions: ['cast', 'attack', 'end-turn', 'forfeit']
+		},
+		'cast-turn': {
+			actions: ['cast', 'end-turn', 'forfeit']
+		},
+		'attack-turn': {
+			actions: ['attack', 'end-turn', 'forfeit']
+		},
+		'end': {
+			actions: ['new-game']
+		},
+		'winning': function (player1, player2) {
+			if (player1.getHealth() < 1 && player2.getHealth() < 1) {
+				return 3;
+			} else if (player1.getHealth() < 1) {
+				return 1;
+			} else if (player2.getHealth() < 1) {
+				return 2;
+			} else {
+				return 0;
+			}
+		},
+		'canCast': function (player) {
+
+		},
+		'canAttack': function (player) {
+
+		}
+	};
+	state = this.machina['start'];
+	this.stimula = function (command) {
+		if (state.actions.indexOf(command) < 0) {
+			return false;
+		}
+		var args = Array.prototype.slice.call(arguments);
+		args.splice(0,1);
+		return board[command].apply(board, args);
+	};
+	this['new-game'] = function (arg1, arg2) {
+		player = new Player(board, 'Player 1');
+		var initialHealth = new Modifier({
+			type: 'timeless',
+			action: {'health': 20},
+			source: board,
+			target: board.player
+		});
+		board.registerModifier(initialHealth);
+
+		enemy = new Player(board, 'Player 2');
+		var initialHealth = new Modifier({
+			type: 'timeless',
+			action: {'health': 20},
+			source: board,
+			target: board.enemy
+		});
+		board.registerModifier(initialHealth);
+	};
+
+
+
 	this.registerModifier = function (modifier) {
 		if (modifier.source && modifier.target) {
 			modifier.target.modifiers.push(modifier);
@@ -174,24 +241,6 @@ function Board () {
 		}
 		return false;
 	};
-
-	this.player1 = new Player(this, 'Player 1');
-	var initialHealth = new Modifier({
-		type: 'timeless',
-		action: {'health': 20},
-		source: this,
-		target: this.player1
-	});
-	this.registerModifier(initialHealth);
-
-	this.player2 = new Player(this, 'Player 2');
-	var initialHealth = new Modifier({
-		type: 'timeless',
-		action: {'health': 20},
-		source: this,
-		target: this.player2
-	});
-	this.registerModifier(initialHealth);
 };
 Board.prototype.generateId = function () {
 	function randomInRange(min, maxExcl) {
@@ -216,6 +265,7 @@ function Player (board, name) {
 	this.hand = [];
 	this.graveyard = [];
 	this.stage = [];
+	this.eventsQ = [];
 };
 Player.prototype.getHealth = function () {
 	var health = 0;
@@ -236,7 +286,6 @@ Player.prototype.cast = function (card) {
 	if (this.hand.indexOf(card) == -1) {
 		return false;
 	}
-	// mana logic;
 	this.hand.splice(this.hand.indexOf(card), 1);
 	this.stage.push(card);
 };
@@ -346,5 +395,5 @@ function ManaCrystal (crystal) {
 	var crystal = crystal || {};
 	this.color = crystal.color || 'colorless';
 	this.active = crystal.active || false;
-	this.exhausted = crystal.exhausted || false; //typeof crystal.exhausted === 'undefined';
+	this.exhausted = crystal.exhausted || false; // otherwise, typeof crystal.exhausted === 'undefined';
 };
