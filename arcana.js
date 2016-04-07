@@ -1,114 +1,284 @@
-var arcana = {};
-arcana.tome = tome;
+var arcana;
 
 /*
- * Next: **Implement the STATE MACHINE -> event queues for all transitions** Summoning sickness & battleager, 1 attack per turn
+ * Next: Summoning sickness & battleager, 1 attack per turn
  */
 
 (function () {
 
-	var board, player1, player2, turn, enemy;
+	var board = new Board();
 
-	this.newGame = function () {
-		board = new Board();
-		player1 = board.player1;
-		player2 = board.player2;
-
-		this.board = board;
-		this.player1 = player1;
-		this.player2 = player2;
-
-		turn  = player1;
-		enemy = player2;
-
-		player1.showGame = showGame;
-		player2.showGame = showGame;
-
-		player1.deck = generateDeck();
-		player2.deck = generateDeck();
-		player1.draw();
-		player1.draw();
-		player1.draw();
-		player2.draw();
-		player2.draw();
-		player2.draw();
-
-		player1.mana.activate(1);
-		turn.showGame();
+	arcana = function () {
+		var result = board.stimula.apply(board, Array.prototype.slice.call(arguments));
+		if (result === 'no-action') {
+			var message = '\nCommand not available!\nAvailable commands:\n';
+			board.getActions().forEach(action => message += '\tarcana(\''+action+'\')\n');
+			message += '\n';
+			console.log(message);
+		} else if (result === 'no-mana') {
+			console.log('Not enough mana!');
+		} else if (result === 'not-staged') {
+			console.log('Card is not staged.');
+		} else if (result === 'not-on-hand') {
+			console.log('Card is not on your hand.');
+		} else if (result === 1) {
+			console.log('\n\n' + board.getPlayer().name + ' has perished. ' + board.getEnemy().name + ' is VICTORIOUS!\n\n\n');
+		} else if (result === 2) {
+			console.log('\n\n' + board.getEnemy().name + ' has perished. ' + board.getPlayer().name + ' is VICTORIOUS!\n\n\n');
+		} else if (result === 3) {
+			console.log('\n\nThe players destroyed each other in the most amazing battle ever seen! It is a TIE.\n\n\n');
+		} else {
+			showGame(result);
+		}
 	};
 
-	function showGame () {
-		console.log('\n\n' + this.name + ': ' + this.getHealth() + '    Mana: ' + this.mana.available() + '/' + this.mana.total());
+	arcana.tome = tome;
+
+	function showGame (player) {
+		console.log('\n\n' + player.name + ': ' + player.getHealth() + '    Mana: ' + player.mana.available() + '/' + player.mana.total());
 
 		var stage = 'Stage: ';
-		for (var i = 0; i < this.stage.length; i++) {
-			stage += ' |' + this.stage[i].name + ' [' + this.stage[i].mana + '] (' + this.stage[i].attack + '/' + this.stage[i].defense + ') ' + this.stage[i].cid + '| ';
+		for (var i = 0; i < player.stage.length; i++) {
+			stage += ' |' + player.stage[i].name + ' [' + player.stage[i].mana + '] (' + player.stage[i].attack + '/' + player.stage[i].defense + ') ' + player.stage[i].cid + '| ';
 		}
 		console.log(stage);
 
 		var hand = 'Hand: ';
-		for (var i = 0; i < this.hand.length; i++) {
-			hand += ' |' + this.hand[i].name + ' [' + this.hand[i].mana + '] (' + this.hand[i].attack + '/' + this.hand[i].defense + ') ' + this.hand[i].cid + '| ';
+		for (var i = 0; i < player.hand.length; i++) {
+			hand += ' |' + player.hand[i].name + ' [' + player.hand[i].mana + '] (' + player.hand[i].attack + '/' + player.hand[i].defense + ') ' + player.hand[i].cid + '| ';
 		}
 		console.log(hand + '\n\n\n');
 	};
-	this.endTurn = function () {
-		if (!board) {
-			console.log('\n\nNo game going on. Start a new game by typing "arcana.newGame()"\n\n');
-			return;
-		}
-		//need to check winning conditions after closing queue is processed
-		if (turn === player1) {
-			turn = player2;
-			enemy = player1;
-		} else {
-			turn = player1;
-			enemy = player2;
-		}
-		//need to check winning conditions after opening queue is processed
-		turn.mana.activate(1);
-		turn.mana.replenish();
-		turn.draw();
-		turn.showGame();
-	};
-	this.cast = function (cid) {
-		if (!board) {
-			console.log('\n\nNo game going on. Start a new game by typing "arcana.newGame()"\n\n');
-			return;
-		}
-		for (var i = 0; i < turn.hand.length; i++) {
-			if (turn.hand[i].cid === cid) {
-				var card = turn.hand[i];
-				if (!turn.mana.hasMana(card.mana)) {
-					console.log('\n\nNot enough mana!\n\n');
-					return false;
+
+})();
+
+
+function Board () {
+	var board, player, enemy, state;
+	board = this;
+	var initialHandSize = 3;
+	var maxHandSize = 7;
+	this.machina = {
+		'start': {
+			actions: ['new-game']
+		},
+		'full-turn': {
+			actions: ['cast', 'attack', 'end', 'forfeit']
+		},
+		'cast-turn': {
+			actions: ['cast', 'end', 'forfeit']
+		},
+		'attack-turn': {
+			actions: ['attack', 'end', 'forfeit']
+		},
+		'end-turn': {
+			actions: ['end', 'forfeit']
+		},
+		'finish': {
+			actions: ['new-game']
+		},
+		'winning': function (player1, player2) {
+			if (player1.getHealth() < 1 && player2.getHealth() < 1) {
+				return 3;
+			} else if (player1.getHealth() < 1) {
+				return 1;
+			} else if (player2.getHealth() < 1) {
+				return 2;
+			} else {
+				return 0;
+			}
+		},
+		'canCast': function (player) {
+			for (var i = 0; i < player.hand.length; i++) {
+				if (player.mana.hasMana(player.hand[i].mana)) {
+					return true;
 				}
-				turn.mana.use(card.mana);
-				turn.cast(card);
-				turn.showGame();
-				winning();
-				return true;
+			}
+			return false;
+		},
+		'canAttack': function (player) {
+			return player.stage.length > 0;
+
+		}
+	};
+	state = this.machina['start'];
+	this.stimula = function (command) {
+		if (state.actions.indexOf(command) < 0) {
+			return 'no-action';
+		}
+		var args = Array.prototype.slice.call(arguments);
+		args.splice(0,1);
+		return board[command].apply(board, args);
+	};
+
+	this['new-game'] = function () {
+		player = new Player(board, 'Player 1');
+		var initialHealth = new Modifier({
+			type: 'timeless',
+			action: {'health': 20},
+			source: board,
+			target: player
+		});
+		board.registerModifier(initialHealth);
+
+		enemy = new Player(board, 'Player 2');
+		var initialHealth = new Modifier({
+			type: 'timeless',
+			action: {'health': 20},
+			source: board,
+			target: enemy
+		});
+		board.registerModifier(initialHealth);
+
+		player.deck = generateDeck();
+		enemy.deck = generateDeck();
+
+		for (var i = 0; i < initialHandSize; i++) {
+			player.draw();
+			enemy.draw();
+		}
+
+		board.startTurn();
+		
+		if (board.machina.canCast(player) && board.machina.canAttack(player)) {
+			state = board.machina['full-turn'];
+		} else if (board.machina.canCast(player)) {
+			state = board.machina['cast-turn'];
+		} else if (board.machina.canAttack(player)) {
+			state = board.machina['attack-turn'];
+		} else  {
+			state = board.machina['end-turn'];
+		}
+
+		return player;
+	};
+
+	this['cast'] = function (cid) {
+		var cardFound = false;
+		for (var i = 0; i < player.hand.length; i++) {
+			if (player.hand[i].cid === cid) {
+				var card = player.hand[i];
+				if (!player.mana.hasMana(card.mana)) {
+					return 'no-mana';
+				}
+				player.mana.use(card.mana);
+				player.cast(card);
+				cardFound = true;
+				break;
 			}
 		}
-		console.log('Card \'' + cid + '\' is not on your hand.');
-	}
-	this.attack = function (cid) {
-		if (!board) {
-			console.log('\n\nNo game going on. Start a new game by typing "arcana.newGame()"\n\n');
-			return;
+		if (!cardFound) {
+			return 'not-on-hand';
 		}
-		for (var i = 0; i < turn.stage.length; i++) {
-			if (turn.stage[i].cid === cid) {
-				var card = turn.stage[i];
-				turn.attack(card, enemy);
-				turn.showGame();
-				winning();
-				return true;
+		if (board.machina.winning(player, enemy) > 0) {
+			state = board.machina['finish'];
+			return board.machina.winning(player, enemy);
+		} else if (board.machina.canCast(player) && board.machina.canAttack(player)) {
+			state = board.machina['full-turn'];
+		} else if (board.machina.canCast(player)) {
+			state = board.machina['cast-turn'];
+		} else if (board.machina.canAttack(player)) {
+			state = board.machina['attack-turn'];
+		} else  {
+			state = board.machina['end-turn'];
+		}
+
+		return player;
+	};
+
+	this['attack'] = function (cid) {
+		var cardFound = false;
+		for (var i = 0; i < player.stage.length; i++) {
+			if (player.stage[i].cid === cid) {
+				var card = player.stage[i];
+				player.attack(card, enemy);
+				cardFound = true;
+				break;
 			}
 		}
-		console.log('Card \'' + cid + '\' is not staged.');
+		if (!cardFound) {
+			return 'not-staged';
+		}
+		if (board.machina.winning(player, enemy) > 0) {
+			state = board.machina['finish'];
+			return board.machina.winning(player, enemy);
+		} else if (board.machina.canCast(player) && board.machina.canAttack(player)) {
+			state = board.machina['full-turn'];
+		} else if (board.machina.canCast(player)) {
+			state = board.machina['cast-turn'];
+		} else if (board.machina.canAttack(player)) {
+			state = board.machina['attack-turn'];
+		} else  {
+			state = board.machina['end-turn'];
+		}
+
+		return player;
+	};
+
+	this['end'] = function () {
+		var switcher = player;
+		player = enemy;
+		enemy = switcher;
+
+		board.startTurn();
+
+		if (board.machina.winning(player, enemy) > 0) {
+			state = board.machina['finish'];
+			return board.machina.winning(player, enemy);
+		} else if (board.machina.canCast(player) && board.machina.canAttack(player)) {
+			state = board.machina['full-turn'];
+		} else if (board.machina.canCast(player)) {
+			state = board.machina['cast-turn'];
+		} else if (board.machina.canAttack(player)) {
+			state = board.machina['attack-turn'];
+		} else  {
+			state = board.machina['end-turn'];
+		}
+
+		return player;
+	};
+
+	this['forfeit'] = function () {
+		state = board.machina['start'];
+		return 1;
+	};
+
+
+	// Util methods
+	this.registerModifier = function (modifier) {
+		if (modifier.source && modifier.target) {
+			modifier.target.modifiers.push(modifier);
+			return true;
+		}
+		return false;
+	};
+
+	this.startTurn = function () {
+		player.mana.activate(1);
+		player.mana.replenish();
+		player.draw();
+		for (var i = 0; i < player.eventsQ.length; i++) {
+			var callback = player.eventsQ[i];
+			if (typeof callback !== 'function') {
+				continue;
+			}
+			callback.call(player);
+		}
+	};
+
+	this.getPlayer = function () {
+		return player;
+	};
+
+	this.getEnemy = function () {
+		return enemy;
+	};
+
+	this.getActions = function () {
+		return state.actions;
 	}
 
+	// Helper functions
 	function generateDeck () {
 		var deck = [];
 		for (var i = 0; i < 30; i++) {
@@ -147,99 +317,6 @@ arcana.tome = tome;
 				card = new Card();
 		}
 		return card;
-	};
-
-	function winning () {
-		if (player1.getHealth() < 1 && player2.getHealth() < 1) {
-			console.log('\n\nThe players destroyed each other in the most amazing battle ever seen! It is a TIE.\n\n\n');
-			board = null;
-		} else if (player1.getHealth() < 1) {
-			console.log('\n\n' + player1.name + ' has perished. ' + player2.name + ' is VICTORIOUS!\n\n\n');
-			board = null;
-		} else if (player2.getHealth() < 1) {
-			console.log('\n\n' + player2.name + ' has perished. ' + player1.name + ' is VICTORIOUS!\n\n\n');
-			board = null;
-		}
-	};
-
-
-}).apply(arcana);
-
-
-function Board () {
-	var board, player, enemy, state;
-	board = this;
-	this.machina = {
-		'start': {
-			actions: ['new-game']
-		},
-		'full-turn': {
-			actions: ['cast', 'attack', 'end-turn', 'forfeit']
-		},
-		'cast-turn': {
-			actions: ['cast', 'end-turn', 'forfeit']
-		},
-		'attack-turn': {
-			actions: ['attack', 'end-turn', 'forfeit']
-		},
-		'end': {
-			actions: ['new-game']
-		},
-		'winning': function (player1, player2) {
-			if (player1.getHealth() < 1 && player2.getHealth() < 1) {
-				return 3;
-			} else if (player1.getHealth() < 1) {
-				return 1;
-			} else if (player2.getHealth() < 1) {
-				return 2;
-			} else {
-				return 0;
-			}
-		},
-		'canCast': function (player) {
-
-		},
-		'canAttack': function (player) {
-
-		}
-	};
-	state = this.machina['start'];
-	this.stimula = function (command) {
-		if (state.actions.indexOf(command) < 0) {
-			return false;
-		}
-		var args = Array.prototype.slice.call(arguments);
-		args.splice(0,1);
-		return board[command].apply(board, args);
-	};
-	this['new-game'] = function (arg1, arg2) {
-		player = new Player(board, 'Player 1');
-		var initialHealth = new Modifier({
-			type: 'timeless',
-			action: {'health': 20},
-			source: board,
-			target: board.player
-		});
-		board.registerModifier(initialHealth);
-
-		enemy = new Player(board, 'Player 2');
-		var initialHealth = new Modifier({
-			type: 'timeless',
-			action: {'health': 20},
-			source: board,
-			target: board.enemy
-		});
-		board.registerModifier(initialHealth);
-	};
-
-
-
-	this.registerModifier = function (modifier) {
-		if (modifier.source && modifier.target) {
-			modifier.target.modifiers.push(modifier);
-			return true;
-		}
-		return false;
 	};
 };
 Board.prototype.generateId = function () {
