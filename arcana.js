@@ -1,7 +1,7 @@
 var arcana;
 
 /*
- * Next: Summoning sickness & battleager, 1 attack per turn
+ * Next: Summoning sickness & battleager, 1 attack per turn, move attack() from player to creature, add player as field of Card.
  */
 
 (function () {
@@ -28,24 +28,52 @@ var arcana;
 		} else if (result === 3) {
 			console.log('\n\nThe players destroyed each other in the most amazing battle ever seen! It is a TIE.\n\n\n');
 		} else {
-			showGame(result);
+			showGame(board.getPlayer(), board.getEnemy());
 		}
 	};
 
 	arcana.tome = tome;
 
-	function showGame (player) {
-		console.log('\n\n' + player.name + ': ' + player.getHealth() + '    Mana: ' + player.mana.available() + '/' + player.mana.total());
+	function showGame (player, enemy) {
+		console.log('\n\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t'+ enemy.name + ': ' + enemy.getHealth());
+		var eStage = 'Enemy\'s stage: ';
+		for (var i = 0; i < enemy.stage.length; i++) {
+			eStage += ' |' + enemy.stage[i].name + ' ';
+			if (enemy.stage[i].sick) {
+				eStage += 'Zzz ';
+			} else if (enemy.stage[i].exhausted) {
+				eStage += '... ';
+			} else {
+				eStage += '^^^ ';
+			}
+			eStage += '(' + enemy.stage[i].attack + '/' + enemy.stage[i].defense + ') ';
+			eStage += enemy.stage[i].cid + '| ';
+		}
+		console.log(eStage);
+
+		console.log('\n\n\n' + player.name + ': ' + player.getHealth() + '    Mana: ' + player.mana.available() + '/' + player.mana.total());
 
 		var stage = 'Stage: ';
 		for (var i = 0; i < player.stage.length; i++) {
-			stage += ' |' + player.stage[i].name + ' [' + player.stage[i].mana + '] (' + player.stage[i].attack + '/' + player.stage[i].defense + ') ' + player.stage[i].cid + '| ';
+			stage += ' |' + player.stage[i].name + ' ';
+			if (player.stage[i].sick) {
+				stage += 'Zzz ';
+			} else if (player.stage[i].exhausted) {
+				stage += '... ';
+			} else {
+				stage += '^^^ ';
+			}
+			stage += '(' + player.stage[i].attack + '/' + player.stage[i].defense + ') ';
+			stage += player.stage[i].cid + '| ';
 		}
 		console.log(stage);
 
 		var hand = 'Hand: ';
 		for (var i = 0; i < player.hand.length; i++) {
-			hand += ' |' + player.hand[i].name + ' [' + player.hand[i].mana + '] (' + player.hand[i].attack + '/' + player.hand[i].defense + ') ' + player.hand[i].cid + '| ';
+			hand += ' |' + player.hand[i].name + ' ';
+			hand += '[' + player.hand[i].mana + '] ';
+			hand += '(' + player.hand[i].attack + '/' + player.hand[i].defense + ') ';
+			hand += player.hand[i].cid + '| ';
 		}
 		console.log(hand + '\n\n\n');
 	};
@@ -97,8 +125,12 @@ function Board () {
 			return false;
 		},
 		'canAttack': function (player) {
-			return player.stage.length > 0;
-
+			for (var i = 0; i < player.stage.length; i++) {
+				if (!player.stage[i].sick && !player.stage[i].exhausted) {
+					return true;
+				}
+			}
+			return false;
 		}
 	};
 	state = this.machina['start'];
@@ -257,8 +289,8 @@ function Board () {
 		player.mana.activate(1);
 		player.mana.replenish();
 		player.draw();
-		for (var i = 0; i < player.eventsQ.length; i++) {
-			var callback = player.eventsQ[i];
+		while (player.eventsQ.length > 0) {
+			var callback = player.eventsQ.pop();
 			if (typeof callback !== 'function') {
 				continue;
 			}
@@ -365,6 +397,7 @@ Player.prototype.cast = function (card) {
 	}
 	this.hand.splice(this.hand.indexOf(card), 1);
 	this.stage.push(card);
+	card.cast(this);
 };
 Player.prototype.attack = function (creature, target) {
 	var damage = new Modifier({
@@ -374,6 +407,7 @@ Player.prototype.attack = function (creature, target) {
 		target: target
 	});
 	this.board.registerModifier(damage);
+	creature.battle(this);
 };
 
 
@@ -395,7 +429,19 @@ function Creature (conf) {
 	this.sick = true;
 	this.exhausted = false;
 };
-
+Creature.prototype.cast = function (player) {
+	var creature = this;
+	player.eventsQ.push(function () {
+		creature.sick = false;
+	});
+};
+Creature.prototype.battle = function (player) {
+	this.exhausted = true;
+	var creature = this;
+	player.eventsQ.push(function () {
+		creature.exhausted = false;
+	});
+};
 
 
 function Modifier (conf) {
