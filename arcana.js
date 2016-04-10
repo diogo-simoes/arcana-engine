@@ -1,7 +1,7 @@
 var arcana;
 
 /*
- * Next: Summoning sickness & battleager, 1 attack per turn, move attack() from player to creature, add player as field of Card.
+ * Next: Battleager, guardian, first strike
  */
 
 (function () {
@@ -46,7 +46,7 @@ var arcana;
 			} else {
 				eStage += '^^^ ';
 			}
-			eStage += '(' + enemy.stage[i].attack + '/' + enemy.stage[i].defense + ') ';
+			eStage += '(' + enemy.stage[i].getAttack() + '/' + enemy.stage[i].getDefense() + ') ';
 			eStage += enemy.stage[i].cid + '| ';
 		}
 		console.log(eStage);
@@ -63,7 +63,7 @@ var arcana;
 			} else {
 				stage += '^^^ ';
 			}
-			stage += '(' + player.stage[i].attack + '/' + player.stage[i].defense + ') ';
+			stage += '(' + player.stage[i].getAttack() + '/' + player.stage[i].getDefense() + ') ';
 			stage += player.stage[i].cid + '| ';
 		}
 		console.log(stage);
@@ -72,7 +72,7 @@ var arcana;
 		for (var i = 0; i < player.hand.length; i++) {
 			hand += ' |' + player.hand[i].name + ' ';
 			hand += '[' + player.hand[i].mana + '] ';
-			hand += '(' + player.hand[i].attack + '/' + player.hand[i].defense + ') ';
+			hand += '(' + player.hand[i].getAttack() + '/' + player.hand[i].getDefense() + ') ';
 			hand += player.hand[i].cid + '| ';
 		}
 		console.log(hand + '\n\n\n');
@@ -162,27 +162,17 @@ function Board () {
 		});
 		board.registerModifier(initialHealth);
 
-		player.deck = generateDeck();
-		enemy.deck = generateDeck();
+		generateDeck(player);
+		generateDeck(enemy);
 
 		for (var i = 0; i < initialHandSize; i++) {
 			player.draw();
 			enemy.draw();
 		}
 
-		board.startTurn();
+		board.startTurn(true);
 		
-		if (board.machina.canCast(player) && board.machina.canAttack(player)) {
-			state = board.machina['full-turn'];
-		} else if (board.machina.canCast(player)) {
-			state = board.machina['cast-turn'];
-		} else if (board.machina.canAttack(player)) {
-			state = board.machina['attack-turn'];
-		} else  {
-			state = board.machina['end-turn'];
-		}
-
-		return player;
+		return board.updateState();
 	};
 
 	this['cast'] = function (cid) {
@@ -202,49 +192,39 @@ function Board () {
 		if (!cardFound) {
 			return 'not-on-hand';
 		}
-		if (board.machina.winning(player, enemy) > 0) {
-			state = board.machina['finish'];
-			return board.machina.winning(player, enemy);
-		} else if (board.machina.canCast(player) && board.machina.canAttack(player)) {
-			state = board.machina['full-turn'];
-		} else if (board.machina.canCast(player)) {
-			state = board.machina['cast-turn'];
-		} else if (board.machina.canAttack(player)) {
-			state = board.machina['attack-turn'];
-		} else  {
-			state = board.machina['end-turn'];
-		}
-
-		return player;
+		
+		return board.updateState();
 	};
 
-	this['attack'] = function (cid) {
-		var cardFound = false;
+	this['attack'] = function (attackerId, targetId) {
+		var attacker;
+		var defender;
 		for (var i = 0; i < player.stage.length; i++) {
-			if (player.stage[i].cid === cid) {
-				var card = player.stage[i];
-				player.attack(card, enemy);
-				cardFound = true;
+			if (player.stage[i].cid === attackerId) {
+				attacker = player.stage[i];
 				break;
 			}
 		}
-		if (!cardFound) {
+		if (!attacker) {
 			return 'not-staged';
 		}
-		if (board.machina.winning(player, enemy) > 0) {
-			state = board.machina['finish'];
-			return board.machina.winning(player, enemy);
-		} else if (board.machina.canCast(player) && board.machina.canAttack(player)) {
-			state = board.machina['full-turn'];
-		} else if (board.machina.canCast(player)) {
-			state = board.machina['cast-turn'];
-		} else if (board.machina.canAttack(player)) {
-			state = board.machina['attack-turn'];
-		} else  {
-			state = board.machina['end-turn'];
+
+		if (targetId) {
+			for (var i = 0; i < enemy.stage.length; i++) {
+				if (enemy.stage[i].cid === targetId) {
+					defender = enemy.stage[i];
+					break;
+				}
+			}
+			if (!defender) {
+				return 'defender-not-valid';
+			}
+			board.battle(attacker, defender);
+		} else {
+			board.battle(attacker);
 		}
 
-		return player;
+		return board.updateState();
 	};
 
 	this['end'] = function () {
@@ -254,20 +234,7 @@ function Board () {
 
 		board.startTurn();
 
-		if (board.machina.winning(player, enemy) > 0) {
-			state = board.machina['finish'];
-			return board.machina.winning(player, enemy);
-		} else if (board.machina.canCast(player) && board.machina.canAttack(player)) {
-			state = board.machina['full-turn'];
-		} else if (board.machina.canCast(player)) {
-			state = board.machina['cast-turn'];
-		} else if (board.machina.canAttack(player)) {
-			state = board.machina['attack-turn'];
-		} else  {
-			state = board.machina['end-turn'];
-		}
-
-		return player;
+		return board.updateState();
 	};
 
 	this['forfeit'] = function () {
@@ -285,10 +252,12 @@ function Board () {
 		return false;
 	};
 
-	this.startTurn = function () {
+	this.startTurn = function (initialTurn) {
 		player.mana.activate(1);
 		player.mana.replenish();
-		player.draw();
+		if (!initialTurn) {
+			player.draw();
+		}			
 		while (player.eventsQ.length > 0) {
 			var callback = player.eventsQ.pop();
 			if (typeof callback !== 'function') {
@@ -296,6 +265,22 @@ function Board () {
 			}
 			callback.call(player);
 		}
+	};
+
+	this.updateState = function () {
+		if (board.machina.winning(player, enemy) > 0) {
+			state = board.machina['finish'];
+			return board.machina.winning(player, enemy);
+		} else if (board.machina.canCast(player) && board.machina.canAttack(player)) {
+			state = board.machina['full-turn'];
+		} else if (board.machina.canCast(player)) {
+			state = board.machina['cast-turn'];
+		} else if (board.machina.canAttack(player)) {
+			state = board.machina['attack-turn'];
+		} else  {
+			state = board.machina['end-turn'];
+		}
+		return player;
 	};
 
 	this.getPlayer = function () {
@@ -311,15 +296,13 @@ function Board () {
 	}
 
 	// Helper functions
-	function generateDeck () {
-		var deck = [];
+	function generateDeck (owner) {
 		for (var i = 0; i < 30; i++) {
-			deck.push(conjureCard());
+			owner.deck.push(conjureCard(owner));
 		}
-		return deck;
 	};
 
-	function conjureCard (serial) {
+	function conjureCard (owner, serial) {
 		function randomInRange(min, maxExcl) {
 			return Math.floor(Math.random() * (maxExcl - min)) + min;
 		}
@@ -338,12 +321,27 @@ function Board () {
 			case 'creature':
 				card = new Creature({
 					board: board,
+					player: owner,
 					serial: recipe.serial,
 					name: recipe.name,
 					mana: recipe.mana,
 					attack: recipe.attack,
 					defense: recipe.defense
 				});
+				var attack = new Modifier({
+					type: 'timeless',
+					action: {'attack': recipe.attack},
+					source: board,
+					target: card
+				});
+				board.registerModifier(attack);
+				var defense = new Modifier({
+					type: 'timeless',
+					action: {'defense': recipe.defense},
+					source: board,
+					target: card
+				});
+				board.registerModifier(defense);
 				break;
 			default:
 				card = new Card();
@@ -355,12 +353,54 @@ Board.prototype.generateId = function () {
 	function randomInRange(min, maxExcl) {
 		return Math.floor(Math.random() * (maxExcl - min)) + min;
 	}
-	var seed = "abcdefghijklmnopqrstuvwxyz1234567890_*";
+	var seed = "abcdefghijklmnopqrstuvwxyz1234567890";
 	var code = "";
 	while (code.length < 4) {
 		code += seed[randomInRange(0, seed.length)];
 	}
 	return code;
+};
+Board.prototype.battle = function (attacker, target) {
+	if (!target) {
+		var damage = new Modifier({
+			type: 'timeless',
+			action: {'health': -1 * attacker.getAttack()},
+			source: attacker,
+			target: this.getEnemy()
+		});
+		this.registerModifier(damage);
+	} else {
+		var attackerDmg = new Modifier({
+			type: 'timeless',
+			action: {'defense': -1 * attacker.getAttack()},
+			source: attacker,
+			target: target
+		});
+		this.registerModifier(attackerDmg);
+
+		var defenderDmg = new Modifier({
+			type: 'timeless',
+			action: {'defense': -1 * target.getAttack()},
+			source: target,
+			target: attacker
+		});
+		this.registerModifier(defenderDmg);
+
+		if (target.getDefense() <= 0) {
+			target.player.stage.splice(target.player.stage.indexOf(target), 1);
+			target.player.graveyard.push(target);
+		}
+	}
+
+	if (attacker.getDefense() <= 0) {
+		attacker.player.stage.splice(attacker.player.stage.indexOf(attacker), 1);
+		attacker.player.graveyard.push(attacker);
+	} else {
+		attacker.exhausted = true;
+		attacker.player.eventsQ.push(function () {
+			attacker.exhausted = false;
+		});
+	}
 };
 
 
@@ -399,49 +439,55 @@ Player.prototype.cast = function (card) {
 	this.stage.push(card);
 	card.cast(this);
 };
-Player.prototype.attack = function (creature, target) {
-	var damage = new Modifier({
-		type: 'timeless',
-		action: {'health': -1 * creature.attack},
-		source: this,
-		target: target
-	});
-	this.board.registerModifier(damage);
-	creature.battle(this);
-};
+
 
 
 
 function Card (conf) {
 	this.board = conf.board;
+	this.player = conf.player;
 	this.serial = conf.serial || '0000/dummy';
 	this.cid = this.board.generateId();
 	this.name = conf.name || '__dummy__';
 	this.mana = conf.mana || 0;
+	this.modifiers = [];
 };
 
 Creature.prototype = Object.create(Card.prototype);
 Creature.prototype.constructor = Creature;
 function Creature (conf) {
 	Card.call(this, conf);
-	this.attack = conf.attack || 0;
-	this.defense = conf.defense || 0;
 	this.sick = true;
 	this.exhausted = false;
 };
-Creature.prototype.cast = function (player) {
+Creature.prototype.cast = function () {
 	var creature = this;
-	player.eventsQ.push(function () {
+	this.player.eventsQ.push(function () {
 		creature.sick = false;
 	});
 };
-Creature.prototype.battle = function (player) {
-	this.exhausted = true;
-	var creature = this;
-	player.eventsQ.push(function () {
-		creature.exhausted = false;
-	});
+Creature.prototype.getAttack = function () {
+	var attack = 0;
+	for (var m = 0; m < this.modifiers.length; m++) {
+		var mod =  this.modifiers[m];
+		if (mod.action.attack) {
+			attack += mod.action.attack;
+		}
+	}
+	return attack;
 };
+Creature.prototype.getDefense = function () {
+	var defense = 0;
+	for (var m = 0; m < this.modifiers.length; m++) {
+		var mod =  this.modifiers[m];
+		if (mod.action.defense) {
+			defense += mod.action.defense;
+		}
+	}
+	return defense;
+};
+
+
 
 
 function Modifier (conf) {

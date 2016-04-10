@@ -10,11 +10,12 @@
 * Read cards from JSON format
 * Model the board state machine.
 * Add event queues turn start.
-* Redesign the Board API (turns, actions, etc.) 
+* Redesign the Board API (turns, actions, etc.)
+* Implement battle mechanics
+* Implement summoning sickness
 
 
 ### ToDo: ###
-* Implement summoning sickness and battleager mechanics
-* Implement battle mechanics
+* Implement battleager, guardian & first strike mechanics
 * Import/export game states from/to JSON
 
