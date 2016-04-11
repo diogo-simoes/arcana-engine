@@ -1,7 +1,7 @@
 var arcana;
 
 /*
- * Next: Battleager, guardian, first strike
+ * Next: Warbanner, warsong
  */
 
 (function () {
@@ -19,6 +19,10 @@ var arcana;
 			console.log('Not enough mana!');
 		} else if (result === 'not-staged') {
 			console.log('Card is not staged.');
+		} else if (result === 'defender-not-valid') {
+			console.log('Not a valid opponent creature.');
+		} else if (result === 'attack-guardians-first') {
+			console.log('Attack guardian creatures first.');
 		} else if (result === 'not-on-hand') {
 			console.log('Card is not on your hand.');
 		} else if (result === 1) {
@@ -39,12 +43,15 @@ var arcana;
 		var eStage = 'Enemy\'s stage: ';
 		for (var i = 0; i < enemy.stage.length; i++) {
 			eStage += ' |' + enemy.stage[i].name + ' ';
-			if (enemy.stage[i].sick) {
+			if (enemy.stage[i].isSick()) {
 				eStage += 'Zzz ';
 			} else if (enemy.stage[i].exhausted) {
 				eStage += '... ';
 			} else {
 				eStage += '^^^ ';
+			}
+			if (enemy.stage[i].isGuardian()) {
+				eStage += '[G] ';
 			}
 			eStage += '(' + enemy.stage[i].getAttack() + '/' + enemy.stage[i].getDefense() + ') ';
 			eStage += enemy.stage[i].cid + '| ';
@@ -56,12 +63,15 @@ var arcana;
 		var stage = 'Stage: ';
 		for (var i = 0; i < player.stage.length; i++) {
 			stage += ' |' + player.stage[i].name + ' ';
-			if (player.stage[i].sick) {
+			if (player.stage[i].isSick()) {
 				stage += 'Zzz ';
 			} else if (player.stage[i].exhausted) {
 				stage += '... ';
 			} else {
 				stage += '^^^ ';
+			}
+			if (player.stage[i].isGuardian()) {
+				stage += '[G] ';
 			}
 			stage += '(' + player.stage[i].getAttack() + '/' + player.stage[i].getDefense() + ') ';
 			stage += player.stage[i].cid + '| ';
@@ -73,6 +83,7 @@ var arcana;
 			hand += ' |' + player.hand[i].name + ' ';
 			hand += '[' + player.hand[i].mana + '] ';
 			hand += '(' + player.hand[i].getAttack() + '/' + player.hand[i].getDefense() + ') ';
+			hand += player.hand[i].isGuardian() ? '[G] ' : '';
 			hand += player.hand[i].cid + '| ';
 		}
 		console.log(hand + '\n\n\n');
@@ -126,7 +137,7 @@ function Board () {
 		},
 		'canAttack': function (player) {
 			for (var i = 0; i < player.stage.length; i++) {
-				if (!player.stage[i].sick && !player.stage[i].exhausted) {
+				if (!player.stage[i].isSick() && !player.stage[i].exhausted) {
 					return true;
 				}
 			}
@@ -209,6 +220,8 @@ function Board () {
 			return 'not-staged';
 		}
 
+		var opponentHasGuardians = this.getEnemy().stage.map(creature => creature.isGuardian()).reduce(((prev, curr) => prev || curr), false);
+
 		if (targetId) {
 			for (var i = 0; i < enemy.stage.length; i++) {
 				if (enemy.stage[i].cid === targetId) {
@@ -219,8 +232,14 @@ function Board () {
 			if (!defender) {
 				return 'defender-not-valid';
 			}
+			if (opponentHasGuardians && defender && !defender.isGuardian()) {
+				return 'attack-guardians-first';
+			}
 			board.battle(attacker, defender);
 		} else {
+			if (opponentHasGuardians) {
+				return 'attack-guardians-first';
+			}
 			board.battle(attacker);
 		}
 
@@ -342,6 +361,33 @@ function Board () {
 					target: card
 				});
 				board.registerModifier(defense);
+
+				for (var i = 0; i < recipe.attributes.length; i++) {
+					var attribute = recipe.attributes[i];
+					switch (attribute) {
+						case 'reckless':
+							var attr = new Modifier({
+								type: 'timeless',
+								action: {'reckless': true},
+								source: board,
+								target: card
+							});
+							board.registerModifier(attr);
+							break;
+						case 'guardian':
+							var attr = new Modifier({
+								type: 'timeless',
+								action: {'guardian': true},
+								source: board,
+								target: card
+							});
+							board.registerModifier(attr);
+							break;
+						default:
+							break;
+					}
+				}
+
 				break;
 			default:
 				card = new Card();
@@ -485,6 +531,25 @@ Creature.prototype.getDefense = function () {
 		}
 	}
 	return defense;
+};
+Creature.prototype.isSick = function () {
+	var reckless = false;
+	for (var m = this.modifiers.length -1; m >= 0; m--) {
+		var mod =  this.modifiers[m];
+		if (mod.action.reckless) {
+			reckless = true;
+		}
+	}
+	return this.sick && !reckless;
+};
+Creature.prototype.isGuardian = function () {
+	for (var m = this.modifiers.length -1; m >= 0; m--) {
+		var mod =  this.modifiers[m];
+		if (mod.action.guardian) {
+			return true;
+		}
+	}
+	return false;
 };
 
 

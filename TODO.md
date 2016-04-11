@@ -16,6 +16,6 @@
 
 
 ### ToDo: ###
-* Implement battleager, guardian & first strike mechanics
+* Implement reckless, guardian, warbanner & warsong mechanics
 * Import/export game states from/to JSON
 

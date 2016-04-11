@@ -6,7 +6,8 @@ tome.push({
 	name: 'Kerhastraz: Dragon Lord',
 	mana: 6,
 	attack: 5,
-	defense: 6
+	defense: 6,
+	attributes: ['guardian']
 });
 
 tome.push({
@@ -15,7 +16,8 @@ tome.push({
 	name: 'Dark Demon',
 	mana: 2,
 	attack: 2,
-	defense: 2
+	defense: 2,
+	attributes: []
 });
 
 tome.push({
@@ -24,7 +26,8 @@ tome.push({
 	name: 'King\'s Footman',
 	mana: 1,
 	attack: 1,
-	defense: 1
+	defense: 1,
+	attributes: ['reckless','guardian']
 });
 
 tome.push({
@@ -33,7 +36,8 @@ tome.push({
 	name: 'Wizard Apprentice',
 	mana: 2,
 	attack: 2,
-	defense: 1
+	defense: 1,
+	attributes: []
 });
 
 tome.push({
@@ -42,7 +46,8 @@ tome.push({
 	name: 'Priest of the Priory',
 	mana: 2,
 	attack: 1,
-	defense: 3
+	defense: 3,
+	attributes: ['guardian']
 });
 
 tome.push({
@@ -51,7 +56,8 @@ tome.push({
 	name: 'Angel of Redemption',
 	mana: 3,
 	attack: 2,
-	defense: 3
+	defense: 3,
+	attributes: ['guardian']
 });
 
 tome.push({
@@ -60,7 +66,8 @@ tome.push({
 	name: 'Dirty Poacher',
 	mana: 1,
 	attack: 1,
-	defense: 1
+	defense: 1,
+	attributes: []
 });
 
 tome.push({
@@ -69,7 +76,8 @@ tome.push({
 	name: 'Marty the Cook',
 	mana: 2,
 	attack: 1,
-	defense: 2
+	defense: 2,
+	attributes: ['']
 });
 
 tome.push({
@@ -78,7 +86,8 @@ tome.push({
 	name: 'Loony the Jester',
 	mana: 1,
 	attack: 1,
-	defense: 1
+	defense: 1,
+	attributes: []
 });
 
 tome.push({
@@ -87,7 +96,8 @@ tome.push({
 	name: 'Echoes from the Depths',
 	mana: 4,
 	attack: 5,
-	defense: 2
+	defense: 2,
+	attributes: []
 });
 
 tome.push({
@@ -96,7 +106,8 @@ tome.push({
 	name: 'The Kraken',
 	mana: 7,
 	attack: 7,
-	defense: 7
+	defense: 7,
+	attributes: []
 });
 
 tome.push({
@@ -105,5 +116,6 @@ tome.push({
 	name: 'Shadow Assassin',
 	mana: 1,
 	attack: 1,
-	defense: 1
+	defense: 1,
+	attributes: ['reckless']
 });
