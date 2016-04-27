@@ -368,7 +368,7 @@ function Board () {
 						case 'reckless':
 							var attr = new Modifier({
 								type: 'timeless',
-								action: {'reckless': true},
+								action: {'sick': false},
 								source: board,
 								target: card
 							});
@@ -503,13 +503,26 @@ Creature.prototype = Object.create(Card.prototype);
 Creature.prototype.constructor = Creature;
 function Creature (conf) {
 	Card.call(this, conf);
-	this.sick = true;
+	var creature =  this;
+	var sick = new Modifier({
+		type: 'timeless',
+		action: {'sick': true},
+		source: creature.board,
+		target: creature
+	});
+	this.board.registerModifier(sick);
 	this.exhausted = false;
 };
 Creature.prototype.cast = function () {
 	var creature = this;
 	this.player.eventsQ.push(function () {
-		creature.sick = false;
+		var sick = new Modifier({
+			type: 'timeless',
+			action: {'sick': false},
+			source: creature.board,
+			target: creature
+		});
+		creature.board.registerModifier(sick);
 	});
 };
 Creature.prototype.getAttack = function () {
@@ -536,17 +549,16 @@ Creature.prototype.isSick = function () {
 	var reckless = false;
 	for (var m = this.modifiers.length -1; m >= 0; m--) {
 		var mod =  this.modifiers[m];
-		if (mod.action.reckless) {
-			reckless = true;
+		if (mod.action.hasOwnProperty('sick')) {
+			return mod.action['sick'];
 		}
 	}
-	return this.sick && !reckless;
 };
 Creature.prototype.isGuardian = function () {
 	for (var m = this.modifiers.length -1; m >= 0; m--) {
 		var mod =  this.modifiers[m];
-		if (mod.action.guardian) {
-			return true;
+		if (mod.action.hasOwnProperty('guardian')) {
+			return mod.action['guardian'];
 		}
 	}
 	return false;
