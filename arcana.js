@@ -1,7 +1,8 @@
 var arcana;
 
 /*
- * Next: Warbanner, warsong
+ * Next: Warbanner, warcry - first implement Spell & Charm card types. When a creature has warbanner or warcry means it has
+ 			either a charm or a spell respectively.
  */
 
 (function () {
@@ -25,6 +26,8 @@ var arcana;
 			console.log('Attack guardian creatures first.');
 		} else if (result === 'not-on-hand') {
 			console.log('Card is not on your hand.');
+		} else if (result === 'invalid-target') {
+			console.log('Can\'t specificy that target.');
 		} else if (result === 1) {
 			console.log('\n\n' + board.getPlayer().name + ' has perished. ' + board.getEnemy().name + ' is VICTORIOUS!\n\n\n');
 		} else if (result === 2) {
@@ -83,7 +86,12 @@ var arcana;
 			hand += ' |' + player.hand[i].name + ' ';
 			hand += '[' + player.hand[i].mana + '] ';
 			hand += '(' + player.hand[i].getAttack() + '/' + player.hand[i].getDefense() + ') ';
-			hand += player.hand[i].isGuardian() ? '[G] ' : '';
+			hand += '[';
+			hand += player.hand[i].isSick() ? '' : 'R';
+			hand += player.hand[i].isGuardian() ? 'G' : '';
+			hand += player.hand[i].hasWarcry() ? 'W' : '';
+			hand += player.hand[i].hasWarbanner() ? 'B' : '';
+			hand += '] ';
 			hand += player.hand[i].cid + '| ';
 		}
 		console.log(hand + '\n\n\n');
@@ -186,7 +194,7 @@ function Board () {
 		return board.updateState();
 	};
 
-	this['cast'] = function (cid) {
+	this['cast'] = function (cid, targetId) {
 		var cardFound = false;
 		for (var i = 0; i < player.hand.length; i++) {
 			if (player.hand[i].cid === cid) {
@@ -194,8 +202,36 @@ function Board () {
 				if (!player.mana.hasMana(card.mana)) {
 					return 'no-mana';
 				}
+				// FIXME: isTargetValid() could be on the Card prototype chain and avoid all this type checking -> transparent polymorphism.
+				var spell; // FIXME: remove when players get referenced by Id.
+				if (card instanceof Creature && card.hasWarcry()) {
+					spell = card.warcry; // FIXME: remove when players get referenced by Id.
+					if (!card.warcry.isTargetValid(targetId)) {
+						return 'invalid-target';
+					}
+				}
+				if (card instanceof Spell) {
+					spell.card; // FIXME: remove when players get referenced by Id.
+					if (!card.isTargetValid(targetId)) {
+						return 'invalid-target';
+					}
+				}
+
+				var target;
+				if (targetId) {
+					var allStaged = enemy.stage.concat(player.stage);
+					for (var i = 0; i < allStaged.length; i++) {
+						if (allStaged[i].cid === targetId) {
+							target = allStaged[i];
+							break;
+						}
+					}
+				} else {
+					target = (spell && spell.type === 'heal') ? player : enemy; // FIXME: remove when players get referenced by Id.
+				}
+
 				player.mana.use(card.mana);
-				player.cast(card);
+				player.cast(card, target);
 				cardFound = true;
 				break;
 			}
@@ -364,7 +400,7 @@ function Board () {
 
 				for (var i = 0; i < recipe.attributes.length; i++) {
 					var attribute = recipe.attributes[i];
-					switch (attribute) {
+					switch (attribute.class) {
 						case 'reckless':
 							var attr = new Modifier({
 								type: 'timeless',
@@ -382,6 +418,27 @@ function Board () {
 								target: card
 							});
 							board.registerModifier(attr);
+							break;
+						case 'warcry':
+							card.warcry = new Spell({
+								board: board,
+								player: owner,
+								serial: 'wc_' + card.serial,
+								name: card.name + '_warcry',
+								type: attribute.type,
+								applicableTargets: attribute.applicableTargets,
+								effect: attribute.effect
+							});
+							break;
+						case 'warbanner':
+							card.warbanner = new Charm({
+								board: board,
+								player: owner,
+								serial: 'wb_' + card.serial,
+								name: card.name + '_warbanner',
+								type: attribute.type,
+								applicableTargets: attribute.applicableTargets
+							});
 							break;
 						default:
 							break;
@@ -477,13 +534,13 @@ Player.prototype.draw = function () {
 	this.hand.push(card);
 	return card;
 };
-Player.prototype.cast = function (card) {
+Player.prototype.cast = function (card, target) {
 	if (this.hand.indexOf(card) == -1) {
 		return false;
 	}
 	this.hand.splice(this.hand.indexOf(card), 1);
 	this.stage.push(card);
-	card.cast(this);
+	card.cast(target);
 };
 
 
@@ -513,7 +570,7 @@ function Creature (conf) {
 	this.board.registerModifier(sick);
 	this.exhausted = false;
 };
-Creature.prototype.cast = function () {
+Creature.prototype.cast = function (target) {
 	var creature = this;
 	this.player.eventsQ.push(function () {
 		var sick = new Modifier({
@@ -524,6 +581,9 @@ Creature.prototype.cast = function () {
 		});
 		creature.board.registerModifier(sick);
 	});
+	if (this.hasWarcry()) {
+		this.warcry.cast(target);
+	}
 };
 Creature.prototype.getAttack = function () {
 	var attack = 0;
@@ -562,6 +622,124 @@ Creature.prototype.isGuardian = function () {
 		}
 	}
 	return false;
+};
+Creature.prototype.hasWarcry = function () {
+	return this.hasOwnProperty('warcry') && this.warcry instanceof Spell;
+}
+Creature.prototype.hasWarbanner = function () {
+	return this.hasOwnProperty('warbanner') && this.warbanner instanceof Charm;
+}
+
+
+
+Spell.prototype = Object.create(Card.prototype);
+Spell.prototype.constructor = Spell;
+function Spell (conf) {
+	Card.call(this, conf);
+	this.type = conf.type;
+	this.applicableTargets = conf.applicableTargets;
+	this.effect = conf.effect;
+};
+Spell.prototype.cast = function (target) {
+	switch (this.type) {
+		case 'damage':
+			var spellDmg = new Modifier({
+				type: 'timeless',
+				action: target instanceof Player ? {'health': -1 * this.effect} : {'defense': -1 * this.effect}, // FIXME: must uniformize attributes
+				source: this,
+				target: target
+			});
+			this.board.registerModifier(spellDmg);
+			if (target instanceof Creature && target.getDefense() <= 0) {
+				target.player.stage.splice(target.player.stage.indexOf(target), 1);
+				target.player.graveyard.push(target);
+			}
+			break;
+
+		case 'heal':
+			// TODO: For now healing just gives more hp instead of recovering under the established defense cap.
+			var spellHeal = new Modifier({
+				type: 'timeless',
+				action: target instanceof Player ? {'health': this.effect} : {'defense': this.effect},
+				source: this,
+				target: target
+			});
+			this.board.registerModifier(spellHeal);
+			break;
+
+		default:
+			break;
+	}
+};
+Spell.prototype.isTargetValid = function (targetId) {
+	var findInStage = function (player, cardId) {
+		for (var i = 0; i < player.stage.length; i++) {
+			if (player.stage[i].cid === cardId) {
+				return player.stage[i];
+			}
+		}
+	};
+	switch (this.applicableTargets) {
+		case 'enemy':
+			if (targetId) {
+				return (findInStage(this.board.getEnemy(), targetId) !== undefined);
+			} else {
+				return true; // targetting the enemy player
+			}
+
+		case 'enemyCreature':
+			if (targetId) {
+				return (findInStage(this.board.getEnemy(), targetId) !== undefined);
+			} else {
+				return false;
+			}
+
+		case 'friendly':
+			if (targetId) {
+				return (findInStage(this.player, targetId) !== undefined);
+			} else {
+				return true; // targetting the player himself
+			}
+
+		case 'friendlyCreature': 
+			if (targetId) {
+				return (findInStage(this.player, targetId) !== undefined);
+			} else {
+				return false;
+			}
+
+		case 'any': 
+			if (targetId) {
+				// TODO: Players must be referenced by IDs as well, like any game entity.
+				if (targetId === 'self' || targetId === 'enemy') {
+					return true;
+				}
+				return (findInStage(this.player, targetId) !== undefined) || (findInStage(this.board.getEnemy(), targetId) !== undefined);
+			} else {
+				return false;
+			}
+
+		case 'anyCreature': 
+			if (targetId) {
+				return (findInStage(this.player, targetId) !== undefined) || (findInStage(this.board.getEnemy(), targetId) !== undefined);
+			} else {
+				return false;
+			}
+
+		default:
+			return false;
+	}
+}
+
+
+
+
+Charm.prototype = Object.create(Card.prototype);
+Charm.prototype.constructor = Charm;
+function Charm (conf) {
+	Card.call(this, conf);
+	this.type = conf.type;
+	this.applicableTargets = conf.applicableTargets;
 };
 
 

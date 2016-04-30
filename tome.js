@@ -7,7 +7,10 @@ tome.push({
 	mana: 6,
 	attack: 5,
 	defense: 6,
-	attributes: ['guardian']
+	attributes: [
+				{class:'guardian'},
+				{class: 'warcry', type:'damage', applicableTargets:'enemy', effect: 3}
+				]
 });
 
 tome.push({
@@ -17,7 +20,7 @@ tome.push({
 	mana: 2,
 	attack: 2,
 	defense: 2,
-	attributes: []
+	attributes: [{class: 'warcry', type:'damage', applicableTargets:'enemy', effect: 2}]
 });
 
 tome.push({
@@ -27,7 +30,10 @@ tome.push({
 	mana: 1,
 	attack: 1,
 	defense: 1,
-	attributes: ['reckless','guardian']
+	attributes: [
+		{class:'reckless'},
+		{class:'guardian'}
+		]
 });
 
 tome.push({
@@ -37,7 +43,7 @@ tome.push({
 	mana: 2,
 	attack: 2,
 	defense: 1,
-	attributes: []
+	attributes: [{class: 'warcry', type:'damage', applicableTargets:'enemy', effect: 1}]
 });
 
 tome.push({
@@ -47,7 +53,9 @@ tome.push({
 	mana: 2,
 	attack: 1,
 	defense: 3,
-	attributes: ['guardian']
+	attributes: [
+				{class:'guardian'},
+				{class: 'warcry', type:'heal', applicableTargets:'friendly', effect: 1}]
 });
 
 tome.push({
@@ -57,7 +65,10 @@ tome.push({
 	mana: 3,
 	attack: 2,
 	defense: 3,
-	attributes: ['guardian']
+	attributes: [
+				{class:'guardian'},
+				{class: 'warcry', type:'heal', applicableTargets:'friendly', effect: 2}
+				]
 });
 
 tome.push({
@@ -77,7 +88,7 @@ tome.push({
 	mana: 2,
 	attack: 1,
 	defense: 2,
-	attributes: ['']
+	attributes: [{class: 'warcry', type:'heal', applicableTargets:'friendly', effect: 2}]
 });
 
 tome.push({
@@ -117,5 +128,5 @@ tome.push({
 	mana: 1,
 	attack: 1,
 	defense: 1,
-	attributes: ['reckless']
+	attributes: [{class:'reckless'}]
 });
