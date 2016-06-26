@@ -166,7 +166,7 @@ function Board () {
 		player = new Player(board, 'Player 1');
 		var initialHealth = new Modifier({
 			type: 'timeless',
-			action: {'health': 20},
+			action: {'defense': 20},
 			source: board,
 			target: player
 		});
@@ -175,7 +175,7 @@ function Board () {
 		enemy = new Player(board, 'Player 2');
 		var initialHealth = new Modifier({
 			type: 'timeless',
-			action: {'health': 20},
+			action: {'defense': 20},
 			source: board,
 			target: enemy
 		});
@@ -467,7 +467,7 @@ Board.prototype.battle = function (attacker, target) {
 	if (!target) {
 		var damage = new Modifier({
 			type: 'timeless',
-			action: {'health': -1 * attacker.getAttack()},
+			action: {'defense': -1 * attacker.getAttack()},
 			source: attacker,
 			target: this.getEnemy()
 		});
@@ -523,8 +523,8 @@ Player.prototype.getHealth = function () {
 	var health = 0;
 	for (var m = 0; m < this.modifiers.length; m++) {
 		var mod =  this.modifiers[m];
-		if (mod.action.health) {
-			health += mod.action.health;
+		if (mod.action.defense) {
+			health += mod.action.defense;
 		}
 	}
 	return health;
@@ -645,7 +645,7 @@ Spell.prototype.cast = function (target) {
 		case 'damage':
 			var spellDmg = new Modifier({
 				type: 'timeless',
-				action: target instanceof Player ? {'health': -1 * this.effect} : {'defense': -1 * this.effect}, // FIXME: must uniformize attributes
+				action: {'defense': -1 * this.effect},
 				source: this,
 				target: target
 			});
@@ -660,7 +660,7 @@ Spell.prototype.cast = function (target) {
 			// TODO: For now healing just gives more hp instead of recovering under the established defense cap.
 			var spellHeal = new Modifier({
 				type: 'timeless',
-				action: target instanceof Player ? {'health': this.effect} : {'defense': this.effect},
+				action: {'defense': this.effect},
 				source: this,
 				target: target
 			});
